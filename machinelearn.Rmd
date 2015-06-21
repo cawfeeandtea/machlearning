@@ -1,0 +1,74 @@
+#Machine Learning - Course Project
+
+###Read in data
+```{r}
+require(caret)
+require(randomForest)
+require(doParallel)
+cl <- makeCluster(detectCores())
+registerDoParallel(cl)
+trainingdat <- read.csv("pml-training.csv", na.strings = c("#DIV/0!","","NA"))
+testingdat <- read.csv("pml-testing.csv", na.strings = c("#DIV/0!","","NA"))
+```
+
+###Split data into training and testing data sets
+10% of data into training training sets
+Remaining 90% of data into training testing sets
+```{r}
+inTrain <- createDataPartition(y=trainingdat$classe, p=0.1, list=FALSE)
+trtesting <- trainingdat[-inTrain,]
+trtraining <- trainingdat[inTrain,] 
+```
+
+###Cleaning data
+Remove first 7 columns of data of both testing and training sets
+These columns contain identifiers and irrelevant data
+```{r}
+trtraining <-trtraining[,-c(1:7)]
+trtesting<-trtesting[,-c(1:7)]
+```
+
+Remove columns with >60% NA values
+```{r}
+trtraining <- trtraining[, colSums(is.na(trtraining)) < .4*nrow(trtraining)]
+trtesting <- trtesting[, colSums(is.na(trtesting)) < .4*nrow(trtesting)]
+```
+
+Remove columns with zero variance
+```{r}
+trtraining <- trtraining[,sapply(trtraining, function(v) var(v, na.rm=TRUE)!=0)]
+trtesting <- trtesting[,sapply(trtesting, function(v) var(v, na.rm=TRUE)!=0)]
+```
+
+###Making predictions with different models
+####Using decision tree model
+```{r}
+treeFit <- train(classe ~., data=trtraining, method = "rpart")
+treepredictions1 <- predict(treeFit, newdata=trtraining)
+confusionMatrix(treepredictions1, trtraining$classe)
+```
+^The accuracy of this model is only 49% in sample, so has a 51% in sample error rate. Since the accuracy is very low, we will not test the model on a testing set and try a different model instead.
+
+###Using random forest model
+```{r}
+rfFit <- train(classe ~., data=trtraining, method = "rf")
+rfpredictions1 <- predict(rfFit, newdata=trtraining)
+confusionMatrix(rfpredictions1, trtraining$classe)
+```
+^ The accuracy of the random forest model is 100%, so the in-sample error rate is 0%
+
+```{r}
+rfpredictions2 <- predict(rfFit, newdata=trtesting)
+confusionMatrix(rfpredictions2, trtesting$classe)
+```
+^The accuracy of the random forest model is 95%, which is much better than the accuracy of the previous model. Since the accuracy is 95%, the out of sample error rate is 5%
+
+###Use random forest model on Testing Data
+Through cross validation, the accuracy of the random forest model was found to be higher than the accuracy of the decision tree model, the random forest model will be used in predictions with the test set.
+
+Make Predictions using Test Data
+```{r}
+model<- randomForest(classe ~. , data=trtraining, method="class")
+pred <- predict(model ,testingdat)
+pred
+```
